@@ -1,50 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-const Speech = () => {
+const SpeechRecognitionComponent = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [confidence, setConfidence] = useState(0);
+  const [recognition, setRecognition] = useState(null);
 
-  const runSpeechRecognition = () => {
+  useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
+    const recognitionInstance = new SpeechRecognition();
 
-    recognition.onstart = () => {
-      setIsListening(true);
+    recognitionInstance.continuous = true;
+    recognitionInstance.interimResults = true; // Keep true if you need real-time results
+    recognitionInstance.lang = 'en-US';
+
+    recognitionInstance.onresult = event => {
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          const result = event.results[i][0].transcript;
+          setTranscript(prevTranscript => prevTranscript + ' ' + result);
+        }
+      }
     };
 
-    recognition.onspeechend = () => {
-      setIsListening(false);
-      recognition.stop();
+    recognitionInstance.onend = () => {
+      if (isListening) {
+        recognitionInstance.start();
+      }
     };
 
-    recognition.onresult = (event) => {
-      const { transcript, confidence } = event.results[0][0];
-      setTranscript(transcript);
-      setConfidence(confidence);
-    };
+    setRecognition(recognitionInstance);
 
-    recognition.start();
+    // Cleanup function to stop recognition when component unmounts
+    return () => recognitionInstance.stop();
+  }, []);
+
+  useEffect(() => {
+    if (isListening) {
+      recognition?.start();
+    } else {
+      recognition?.stop();
+    }
+  }, [isListening, recognition]);
+
+  const toggleListening = () => {
+    setIsListening(prevState => !prevState);
+    if (!isListening) {
+      setTranscript(''); // Clear transcript when starting a new session
+    }
   };
 
   return (
     <div>
-      <h2>JavaScript Speech to Text</h2>
-      <p>Click on the below button and speak something...</p>
-      <button onClick={runSpeechRecognition}>
-        {isListening ? 'Listening...' : 'Speech to Text'}
+      <button onClick={toggleListening}>
+        {isListening ? 'Stop' : 'Start'} Listening
       </button>
-      <div>
-        {isListening ? <span>listening, please speak...</span> : <span>stopped listening, hope you are done...</span>}
-      </div>
-      {transcript && (
-        <div style={{ marginTop: '20px', backgroundColor: '#F9F9F9', padding: '10px' }}>
-          <strong>Text:</strong> {transcript}<br />
-          <strong>Confidence:</strong> {(confidence * 100).toFixed(2)}%
-        </div>
-      )}
+      <p>{transcript}</p>
     </div>
   );
 };
 
-export default Speech;
+export default SpeechRecognitionComponent;
